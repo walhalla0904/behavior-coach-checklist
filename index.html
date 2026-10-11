@@ -52,14 +52,15 @@
   .minus, .plus { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; border: 0; color: #fff; font-weight: 700; font-size: 16px; line-height: 1; cursor: pointer; align-self: center; margin-left: 12px; }
   .minus { background: var(--red); }
   .plus { background: var(--ok); margin: 0 12px 0 0; }
-  .main { flex: 1; min-width: 0; padding: 13px 6px 13px 14px; border: 0; background: none; text-align: left; cursor: pointer; }
+  .main { flex: 1; min-width: 0; padding: 13px 14px 13px 10px; border: 0; background: none; text-align: left; cursor: pointer; }
   .nm { font-size: 15px; font-weight: 600; line-height: 1.45; }
   .tag { display: inline-block; font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-top: 3px; }
   .rate { flex: 0 0 auto; align-self: center; padding: 0 14px; font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .ck { flex: 0 0 66px; border: 0; border-left: 1px solid var(--line); background: var(--soft); cursor: pointer; font-size: 11.5px; color: var(--sub); padding: 0; transition: background .2s, color .2s; }
-  .ck i { font-style: normal; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--ring); margin: 0 auto 3px; display: grid; place-items: center; font-size: 14px; transition: transform .15s, background .2s, border-color .2s; }
-  .done .ck { background: var(--ok-soft); color: var(--ok); }
-  .done .ck i { background: var(--ok); border-color: var(--ok); color: #fff; transform: scale(1.06); }
+  /* iPhone のリマインダーのように、左に丸だけ（2026-10-11 ユーザーの希望）。押せる範囲は丸のまわりまで広く取る */
+  .ck { flex: 0 0 50px; border: 0; background: none; cursor: pointer; padding: 0 0 0 14px; display: flex; align-items: center; }
+  .ck i { font-style: normal; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--ring); display: grid; place-items: center; font-size: 14px; color: #fff; transition: transform .15s, background .2s, border-color .2s; }
+  .done .ck i { background: var(--ok); border-color: var(--ok); transform: scale(1.06); }
+  .done .nm { color: var(--sub); }
   .det { display: none; padding: 0 14px 14px; font-size: 14px; }
   .open .det { display: block; }
   .dl { font-size: 11px; font-weight: 700; margin: 8px 0 3px; }
@@ -97,7 +98,7 @@
   <div class="card"><div class="stat"><div><div class="big" id="big">–</div><small>今日できた</small></div><div class="bars" id="bars"></div></div></div>
   <div class="card" id="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
   <div id="extra"></div>
-  <p class="note" id="note">できたものの右を押す。日付が変わると、まっさらに戻る（記録は残る）。</p>
+  <p class="note" id="note">できたものの左の丸を押す。日付が変わると、まっさらに戻る（記録は残る）。</p>
 </div>
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="sheet" role="dialog"></div>
@@ -138,10 +139,10 @@
 
   function itemHtml(it) {
     var ev = (it.events || []).map(function (e) { return '<div class="ev"><span class="d">' + md(e.date) + '</span><span>' + esc(e.text) + (e.partner ? '（' + esc(e.partner) + '）' : '') + '</span></div>'; }).join('');
-    var right = editing ? '<span class="rate">7日で' + (it.rate7 || 0) + '</span>'
-      : '<button class="ck" data-c="' + esc(it.id) + '" aria-pressed="' + !!it.checked + '"><i>' + (it.checked ? '✓' : '') + '</i>' + (it.checked ? 'できた' : '今日は？') + '</button>';
-    return '<div class="it' + (it.checked && !editing ? ' done' : '') + '" id="i-' + esc(it.id) + '"><div class="row">' +
-      (editing ? '<button class="minus" data-rm="' + esc(it.id) + '" aria-label="外す">−</button>' : '') +
+    var left = editing ? '<button class="minus" data-rm="' + esc(it.id) + '" aria-label="外す">−</button>'
+      : '<button class="ck" data-c="' + esc(it.id) + '" aria-pressed="' + !!it.checked + '" aria-label="今日できた"><i>' + (it.checked ? '✓' : '') + '</i></button>';
+    var right = editing ? '<span class="rate">7日で' + (it.rate7 || 0) + '</span>' : '';
+    return '<div class="it' + (it.checked && !editing ? ' done' : '') + '" id="i-' + esc(it.id) + '"><div class="row">' + left +
       '<button class="main" data-o="' + esc(it.id) + '"><div class="nm">' + esc(it.name) + '</div>' + ((it.domains || [])[0] ? '<span class="tag">' + esc(it.domains[0]) + '</span>' : '') + '</button>' + right + '</div>' +
       '<div class="det">' + (it.plan ? '<div class="dl" style="color:var(--accent)">次にすること</div><div class="plan">' + esc(it.plan) + '</div>' : '') +
       (it.essence ? '<div class="dl" style="color:var(--amber)">本質（見立て）</div><div>' + esc(it.essence) + '</div>' : '') +
