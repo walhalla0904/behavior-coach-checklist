@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>行動コーチ</title>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
 <!--
   行動コーチのチェックリスト（LINE の中でせり出す画面＝LIFF のページ）。デザインは案6「大きなタップと右のチェック」（2026-10-11 ユーザー選定）
   Google の帯を出さないため、GitHub Pages に置く。このファイルには記録も合言葉も入れない。
@@ -47,7 +49,6 @@
   .done .ck { background: var(--ok-soft); color: var(--ok); }
   .done .ck i { background: var(--ok); border-color: var(--ok); color: #fff; transform: scale(1.06); }
   .done .nm { color: var(--sub); }
-  .busy .ck { opacity: .5; }
   .det { display: none; padding: 0 14px 14px; font-size: 13.5px; }
   .open .det { display: block; }
   .dl { font-size: 11px; font-weight: 700; margin: 8px 0 3px; }
@@ -132,13 +133,23 @@
     if (focus) { var f = $(focus); if (f) f.scrollIntoView({ block: 'center' }); focus = ''; }
   }
 
+  // 前回の中身をスマホに覚えておき、開いた瞬間に出す。新しい中身は裏で読み直して差し替える（開くのを速くする）
+  function cacheKey() { return 'bc:' + query(); }
+  function remember() { try { localStorage.setItem(cacheKey(), JSON.stringify(DATA)); } catch (e) { /* 覚えられなくても動く */ } }
+  function recall() { try { return JSON.parse(localStorage.getItem(cacheKey()) || 'null'); } catch (e) { return null; } }
+
+  var seq = 0;
   function load() {
     if (!KEY || !API) { $('meta').textContent = 'LINE の行動コーチから開いてほしい。'; $('list').innerHTML = ''; return; }
-    document.body.classList.add('loading');
-    call({ api: 'data', q: query() }).then(function (d) { DATA = d; render(); })
-      .catch(function (e) { $('meta').textContent = '読み込めなかった：' + e.message; })
-      .then(function () { document.body.classList.remove('loading'); });
+    var my = ++seq;
+    var cached = recall();
+    if (cached) { DATA = cached; render(); }
+    call({ api: 'data', q: query() }).then(function (d) {
+      if (my !== seq || pending > 0) return; // 条件を変えた・保存中なら、古い返事で上書きしない
+      DATA = d; render(); remember();
+    }).catch(function (e) { if (!cached) $('meta').textContent = '読み込めなかった：' + e.message; });
   }
+  var pending = 0;
 
   function find(id) {
     var all = DATA.items.concat(DATA.archived);
@@ -152,18 +163,15 @@
     if (t.dataset.s) { scope = t.dataset.s; render(); load(); return; }
     if (t.dataset.c && DATA) {
       var it = find(t.dataset.c); if (!it) return;
-      var box = $(it.id); if (box.classList.contains('busy')) return;
-      // 押した瞬間に見た目を変える（返事を待たない）。保存に失敗したら元に戻す
+      var box = $(it.id);
+      // 押した瞬間に見た目を変える（返事を待たない）。保存は裏で行い、失敗したときだけ元に戻して知らせる
       var v = !it.cleared;
-      it.cleared = v; box.classList.toggle('done', v); box.classList.add('busy');
-      t.innerHTML = '<i>' + (v ? '✓' : '') + '</i>' + (v ? 'クリア' : 'できた');
+      var paint = function (on) { it.cleared = on; box.classList.toggle('done', on); t.innerHTML = '<i>' + (on ? '✓' : '') + '</i>' + (on ? 'クリア' : 'できた'); };
+      paint(v); remember();
+      pending++;
       call({ api: 'done', t: it.id, v: v ? '1' : '0' })
-        .then(function () { toast(v ? 'クリアにした' : '改善中に戻した'); box.classList.remove('busy'); })
-        .catch(function (err) {
-          it.cleared = !v; box.classList.toggle('done', !v); box.classList.remove('busy');
-          t.innerHTML = '<i>' + (!v ? '✓' : '') + '</i>' + (!v ? 'クリア' : 'できた');
-          toast('保存できなかった：' + err.message);
-        });
+        .catch(function (err) { if (it.cleared === v) { paint(!v); remember(); } toast('保存できなかった：' + err.message); })
+        .then(function () { pending--; });
     }
   });
   $('period').addEventListener('change', function () { period = this.value; load(); });
