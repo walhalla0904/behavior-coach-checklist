@@ -8,181 +8,226 @@
 <link rel="preconnect" href="https://script.google.com">
 <link rel="preconnect" href="https://script.googleusercontent.com">
 <!--
-  行動コーチのチェックリスト（LINE の中でせり出す画面＝LIFF のページ）。デザインは案6「大きなタップと右のチェック」（2026-10-11 ユーザー選定）
-  Google の帯を出さないため、GitHub Pages に置く。このファイルには記録も合言葉も入れない。
+  行動コーチの「今日のふり返り」（LINE の中でせり出す画面＝LIFF のページ）
+  - いま取り組む10を毎日ふり返り、「できた」を押す（2択）。定着したら外す（2026-10-11 ユーザーの希望）
+  - デザイン案C：上に今日の数と7日の棒、リストは名前だけ。「編集」で − と ＋（項目ごとの7日の数も編集のときだけ出す）
+  - 見た目は AI家計簿にそろえる。Google の帯を出さないため GitHub Pages に置く。記録も合言葉もこのファイルには入れない
   開き方：LIFF の Endpoint URL = このページ?k=合言葉&api=スプレッドシート側の公開URL
-          カードから開くときの条件（q・focus）は、LINE が liff.state に入れて渡す
-  記録の読み書きは api（Apps Script の doGet）に JSON で頼む。元のコードは 04_Claude/14_BehaviorCoach/checklist/index.html
+  元のコードは 03_program リポジトリの 04_Claude/14_BehaviorCoach/checklist/index.html
 -->
 <style>
-  /* 見た目は AI家計簿の報告ページ（11_HouseholdManagement/gas/src/Report.html）にそろえる（2026-10-11 ユーザーの希望）
-     白いカード・細い線・角丸14px・薄い影・青、文字はスマホ標準 */
   :root {
     --bg: #f4f6f9; --card: #ffffff; --ink: #1d2433; --sub: #5f6b7a; --line: #e3e8ef; --soft: #f6f8fb;
-    --accent: #1f6feb; --accent-soft: #eef4ff; --ok: #1a8a4a; --ok-soft: #e8f5ed; --amber: #b06d00; --ring: #c5cdd8;
+    --accent: #1f6feb; --accent-soft: #eef4ff; --bar: #c9dafc; --ok: #1a8a4a; --ok-soft: #e8f5ed; --amber: #b06d00; --ring: #c5cdd8; --red: #e5484d;
     --shadow: 0 1px 2px rgba(20,30,50,.06), 0 4px 16px rgba(20,30,50,.05);
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #10141b; --card: #1a2029; --ink: #e8edf4; --sub: #9aa7b8; --line: #2a323e; --soft: #212834;
-      --accent: #5b9dff; --accent-soft: #1b2a40; --ok: #4cc27f; --ok-soft: #173326; --amber: #e5b23a; --ring: #4a5666; --shadow: none; color-scheme: dark; }
+      --accent: #5b9dff; --accent-soft: #1b2a40; --bar: #2c4166; --ok: #4cc27f; --ok-soft: #173326; --amber: #e5b23a; --ring: #4a5666; --red: #ff6b6b; --shadow: none; color-scheme: dark; }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
   body { background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
     font-size: 15px; line-height: 1.55; -webkit-text-size-adjust: 100%; padding-bottom: env(safe-area-inset-bottom, 0px); }
-  button, select { font: inherit; color: inherit; }
+  button { font: inherit; color: inherit; }
   .wrap { max-width: 640px; margin: 0 auto; padding: 14px 16px 32px; }
-  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin: 2px 0 12px; }
+  header { display: flex; align-items: flex-end; gap: 8px; margin: 2px 0 12px; }
   header .app { font-size: 12px; color: var(--sub); }
   header h1 { font-size: 22px; margin: 0; letter-spacing: .02em; }
-  header select { font-size: 13px; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; background: var(--card); }
-  .scope { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 4px; padding: 0 16px; }
-  .scope::-webkit-scrollbar { display: none; }
-  .scope button { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 13px; font-size: 13px; cursor: pointer; white-space: nowrap; }
-  .scope button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-  .meta { font-size: 12px; color: var(--sub); margin: 6px 2px 10px; min-height: 18px; }
+  .edit { margin-left: auto; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+  .edit.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; margin-bottom: 14px; }
   .card h2 { font-size: 13px; color: var(--sub); font-weight: 600; margin: 0; padding: 12px 14px 4px; letter-spacing: .04em; }
+  .stat { display: flex; align-items: center; gap: 14px; padding: 14px; }
+  .big { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  .big span { font-size: 15px; color: var(--sub); font-weight: 600; }
+  .stat small { display: block; font-size: 12px; color: var(--sub); margin-top: 4px; }
+  .bars { margin-left: auto; display: flex; gap: 6px; align-items: flex-end; height: 48px; padding-bottom: 14px; position: relative; }
+  .bars div { width: 16px; border-radius: 3px 3px 0 0; background: var(--bar); position: relative; min-height: 3px; transition: height .25s; }
+  .bars div.t { background: var(--accent); }
+  .bars span { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--sub); margin-top: 2px; white-space: nowrap; }
   .it { border-top: 1px solid var(--line); }
-  .card h2 + .it, .card > .it:first-child { border-top: 0; }
+  .it:first-child, .card h2 + .it { border-top: 0; }
   .row { display: flex; align-items: stretch; }
-  .main { flex: 1; min-width: 0; padding: 12px 6px 12px 14px; border: 0; background: none; text-align: left; cursor: pointer; }
+  .minus, .plus { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; border: 0; color: #fff; font-weight: 700; font-size: 16px; line-height: 1; cursor: pointer; align-self: center; margin-left: 12px; }
+  .minus { background: var(--red); }
+  .plus { background: var(--ok); margin: 0 12px 0 0; }
+  .main { flex: 1; min-width: 0; padding: 13px 6px 13px 14px; border: 0; background: none; text-align: left; cursor: pointer; }
   .nm { font-size: 15px; font-weight: 600; line-height: 1.45; }
-  .sb { font-size: 12px; color: var(--sub); margin-top: 2px; }
-  .tag { display: inline-block; font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-right: 6px; }
+  .tag { display: inline-block; font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-top: 3px; }
+  .rate { flex: 0 0 auto; align-self: center; padding: 0 14px; font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .ck { flex: 0 0 66px; border: 0; border-left: 1px solid var(--line); background: var(--soft); cursor: pointer; font-size: 11.5px; color: var(--sub); padding: 0; transition: background .2s, color .2s; }
   .ck i { font-style: normal; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--ring); margin: 0 auto 3px; display: grid; place-items: center; font-size: 14px; transition: transform .15s, background .2s, border-color .2s; }
   .done .ck { background: var(--ok-soft); color: var(--ok); }
   .done .ck i { background: var(--ok); border-color: var(--ok); color: #fff; transform: scale(1.06); }
-  .done .nm { color: var(--sub); }
   .det { display: none; padding: 0 14px 14px; font-size: 14px; }
   .open .det { display: block; }
   .dl { font-size: 11px; font-weight: 700; margin: 8px 0 3px; }
   .plan { background: var(--accent-soft); color: var(--accent); border-radius: 10px; padding: 8px 10px; }
   .ev { display: grid; grid-template-columns: 44px 1fr; gap: 6px; font-size: 13px; padding: 2px 0; }
   .ev .d { color: var(--sub); }
+  .crow { display: flex; align-items: center; padding: 11px 14px; border-top: 1px solid var(--line); }
+  .card h2 + .crow { border-top: 0; }
+  .crow .t { flex: 1; min-width: 0; font-size: 14px; }
+  .crow small { display: block; font-size: 11.5px; color: var(--sub); }
   .empty { padding: 18px 14px; text-align: center; color: var(--sub); font-size: 14px; }
-  .foot { font-size: 12px; color: var(--sub); margin: 4px 2px 0; }
-  .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90%; }
+  .note { font-size: 12px; color: var(--sub); margin: 0 2px 12px; }
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.3); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 4; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,.15); transform: translateY(105%); transition: transform .25s; max-height: 75vh; overflow-y: auto; z-index: 5; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .sheet.open { transform: none; } .scrim.open { opacity: 1; pointer-events: auto; }
+  .sheet .hd { display: flex; gap: 8px; padding: 14px 14px 6px; font-weight: 700; font-size: 15px; }
+  .sheet .hd button { margin-left: auto; border: 0; background: none; font-size: 20px; line-height: 1; cursor: pointer; color: var(--sub); }
+  .sheet .sub { padding: 0 14px 6px; font-size: 12.5px; color: var(--sub); }
+  .opt { display: block; width: calc(100% - 28px); margin: 8px 14px; text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 11px 13px; cursor: pointer; }
+  .opt b { display: block; font-size: 15px; }
+  .opt small { color: var(--sub); font-size: 12px; }
+  .opt.ok b { color: var(--ok); }
+  .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90%; z-index: 9; }
   .toast.on { opacity: .95; }
-  .skel { height: 62px; border-top: 1px solid var(--line); }
-  .skel:first-child { border-top: 0; }
+  .skel { height: 58px; border-top: 1px solid var(--line); } .skel:first-child { border-top: 0; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div><div class="app">行動コーチ</div><h1>まだ改善中のこと</h1></div>
-    <select id="period" aria-label="期間">
-      <option value="">全部</option><option>今週</option><option>先週</option><option>今月</option><option>先月</option><option>今年</option>
-    </select>
+    <div><div class="app">行動コーチ</div><h1>今日のふり返り</h1></div>
+    <button class="edit" id="edit">編集</button>
   </header>
-  <div class="scope" id="scope"></div>
-  <div class="meta" id="meta">読み込み中…</div>
+  <div class="card"><div class="stat"><div><div class="big" id="big">–</div><small>今日できた</small></div><div class="bars" id="bars"></div></div></div>
   <div class="card" id="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
-  <div id="arch"></div>
-  <p class="foot">右の「できた」を押すとクリアになる。もう一度押すと改善中に戻る。同じ型のことがまた起きたら、クリアにしたものも自動で改善中に戻る。</p>
+  <div id="extra"></div>
+  <p class="note" id="note">できたものの右を押す。日付が変わると、まっさらに戻る（記録は残る）。</p>
 </div>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog"></div>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
 (function () {
-  var SCOPES = ['すべて', '家庭・夫婦', '職場', '友人・知人', '親族', 'ひとり'];
-  var PERIOD_WORDS = ['今週', '先週', '今月', '先月', '今年'];
-
-  // ---- 呼び出しの条件を読む（LIFF は ?q=… を liff.state に入れて渡す） ----
+  // ---- 呼び出しの条件（LIFF は追加の条件を liff.state に入れて渡す） ----
   var params = new URLSearchParams(location.search);
   var state = params.get('liff.state');
   if (state) new URLSearchParams(state.replace(/^[^?]*\?/, '')).forEach(function (v, k) { params.set(k, v); });
-  var KEY = params.get('k') || '';
-  var API = params.get('api') || '';
-  var focus = (params.get('focus') || '').replace(/[^A-Za-z0-9-]/g, '');
-  var words = (params.get('q') || '').split(/[\s　、,]+/).filter(Boolean);
-  var period = '', scope = 'すべて', rest = [];
-  words.forEach(function (w) {
-    if (!period && PERIOD_WORDS.indexOf(w) >= 0) period = w;
-    else if (scope === 'すべて' && SCOPES.indexOf(w) > 0) scope = w;
-    else if (scope === 'すべて' && { '夫婦': 1, '家庭': 1, '家': 1 }[w]) scope = '家庭・夫婦';
-    else if (scope === 'すべて' && { '仕事': 1, '会社': 1 }[w]) scope = '職場';
-    else rest.push(w); // 「妻」など相手の言葉や、10月のような期間はそのままサーバーに渡す
-  });
-  var DATA = null;
+  var KEY = params.get('k') || '', API = params.get('api') || '';
+  var DATA = null, editing = false, pending = 0, seq = 0;
 
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var md = function (s) { var m = String(s || '').match(/^\d{4}-(\d{2})-(\d{2})/); return m ? Number(m[1]) + '/' + Number(m[2]) : esc(s); };
   function toast(t) { var x = $('toast'); x.textContent = t; x.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(function () { x.classList.remove('on'); }, 1600); }
-
-  function query() { return [period, scope === 'すべて' ? '' : scope].concat(rest).filter(Boolean).join(' '); }
   function call(p) {
     var u = API + (API.indexOf('?') >= 0 ? '&' : '?') + 'k=' + encodeURIComponent(KEY) + '&' + new URLSearchParams(p).toString();
     return fetch(u).then(function (r) { return r.json(); }).then(function (j) { if (!j.ok) throw new Error(j.error || '失敗'); return j.data; });
   }
+  // 前回の中身をスマホに覚えておき、開いた瞬間に出す（日付が違えばチェックはまっさらにして出す）
+  function remember() { try { localStorage.setItem('bc:daily', JSON.stringify(DATA)); } catch (e) { /* 覚えなくても動く */ } }
+  function recall() {
+    try {
+      var d = JSON.parse(localStorage.getItem('bc:daily') || 'null');
+      var n = new Date(), t = n.getFullYear() + '-' + ('0' + (n.getMonth() + 1)).slice(-2) + '-' + ('0' + n.getDate()).slice(-2);
+      if (d && d.date !== t) { d.items.forEach(function (i) { i.checked = false; }); d.todayDone = 0; }
+      return d;
+    } catch (e) { return null; }
+  }
+  function find(id, from) { var a = from || DATA.items; for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
+  function recount() {
+    DATA.todayDone = DATA.items.filter(function (i) { return i.checked; }).length; DATA.total = DATA.items.length;
+    if (DATA.week && DATA.week.length) DATA.week[DATA.week.length - 1].rate = DATA.total ? DATA.todayDone / DATA.total : 0;
+  }
 
   function itemHtml(it) {
     var ev = (it.events || []).map(function (e) { return '<div class="ev"><span class="d">' + md(e.date) + '</span><span>' + esc(e.text) + (e.partner ? '（' + esc(e.partner) + '）' : '') + '</span></div>'; }).join('');
-    return '<div class="it' + (it.cleared ? ' done' : '') + (it.id === focus ? ' open' : '') + '" id="' + esc(it.id) + '">' +
-      '<div class="row"><button class="main" data-o="' + esc(it.id) + '"><div class="nm">' + esc(it.name) + '</div>' +
-      '<div class="sb">' + (it.domains || []).map(function (d) { return '<span class="tag">' + esc(d) + '</span>'; }).join('') + '最後 ' + md(it.last) + '</div></button>' +
-      '<button class="ck" data-c="' + esc(it.id) + '" aria-pressed="' + !!it.cleared + '"><i>' + (it.cleared ? '✓' : '') + '</i>' + (it.cleared ? 'クリア' : 'できた') + '</button></div>' +
+    var right = editing ? '<span class="rate">7日で' + (it.rate7 || 0) + '</span>'
+      : '<button class="ck" data-c="' + esc(it.id) + '" aria-pressed="' + !!it.checked + '"><i>' + (it.checked ? '✓' : '') + '</i>' + (it.checked ? 'できた' : '今日は？') + '</button>';
+    return '<div class="it' + (it.checked && !editing ? ' done' : '') + '" id="i-' + esc(it.id) + '"><div class="row">' +
+      (editing ? '<button class="minus" data-rm="' + esc(it.id) + '" aria-label="外す">−</button>' : '') +
+      '<button class="main" data-o="' + esc(it.id) + '"><div class="nm">' + esc(it.name) + '</div>' + ((it.domains || [])[0] ? '<span class="tag">' + esc(it.domains[0]) + '</span>' : '') + '</button>' + right + '</div>' +
       '<div class="det">' + (it.plan ? '<div class="dl" style="color:var(--accent)">次にすること</div><div class="plan">' + esc(it.plan) + '</div>' : '') +
       (it.essence ? '<div class="dl" style="color:var(--amber)">本質（見立て）</div><div>' + esc(it.essence) + '</div>' : '') +
-      (ev ? '<div class="dl" style="color:var(--sub)">出来事（新しい順）</div>' + ev : '') + '</div></div>';
+      (ev ? '<div class="dl" style="color:var(--sub)">最近の出来事</div>' + ev : '') + '</div></div>';
   }
 
   function render() {
-    $('period').value = period;
-    $('scope').innerHTML = SCOPES.map(function (s) { return '<button class="' + (s === scope ? 'on' : '') + '" data-s="' + s + '">' + s + '</button>'; }).join('');
+    $('edit').textContent = editing ? '完了' : '編集';
+    $('edit').classList.toggle('on', editing);
     if (!DATA) return;
-    $('meta').textContent = DATA.label + (DATA.range ? '（' + DATA.range + '）' : '') + (DATA.omitted ? '　重さと新しさで選んだ' + DATA.items.length + 'つ（ほかに' + DATA.omitted + '）' : '');
-    $('list').innerHTML = DATA.items.length ? DATA.items.map(itemHtml).join('') : '<div class="empty">この条件では、改善中のことはない。</div>';
-    $('arch').innerHTML = DATA.archived.length ? '<div class="card"><h2>クリアにしたもの</h2>' + DATA.archived.map(itemHtml).join('') + '</div>' : '';
-    if (focus) { var f = $(focus); if (f) f.scrollIntoView({ block: 'center' }); focus = ''; }
+    $('big').innerHTML = DATA.todayDone + '<span>/' + DATA.total + '</span>';
+    $('bars').innerHTML = (DATA.week || []).map(function (w, i, a) { return '<div class="' + (i === a.length - 1 ? 't' : '') + '" style="height:' + Math.max(3, Math.round(w.rate * 34)) + 'px"><span>' + esc(w.label) + '</span></div>'; }).join('');
+    $('list').innerHTML = DATA.items.length ? DATA.items.map(itemHtml).join('') : '<div class="empty">取り組むものがまだない。' + (DATA.candidates.length ? '「編集」から候補を足す。' : 'LINE にメモを送ると、ここに入る。') + '</div>';
+    var ex = '';
+    if (editing) {
+      ex += '<div class="card"><h2>候補から足す（入れるとよい順）</h2>' + (DATA.candidates.length ? DATA.candidates.map(function (c) {
+        return '<div class="crow"><button class="plus" data-add="' + esc(c.id) + '" aria-label="足す">＋</button><div class="t">' + esc(c.name) + '<small>' + esc((c.domains || []).join('・')) + (c.last ? '　最後 ' + md(c.last) : '') + '</small></div></div>';
+      }).join('') : '<div class="empty">候補はない。</div>') + '</div>';
+      ex += '<p class="note">− で外す（定着した／候補に戻す）。取り組むは最大10。いっぱいのときに ＋ を押すと、入れ替える相手を選べる。定着したもの ' + (DATA.graduated || 0) + '。</p>';
+    }
+    $('extra').innerHTML = ex;
+    $('note').hidden = editing;
   }
 
-  // 前回の中身をスマホに覚えておき、開いた瞬間に出す。新しい中身は裏で読み直して差し替える（開くのを速くする）
-  function cacheKey() { return 'bc:' + query(); }
-  function remember() { try { localStorage.setItem(cacheKey(), JSON.stringify(DATA)); } catch (e) { /* 覚えられなくても動く */ } }
-  function recall() { try { return JSON.parse(localStorage.getItem(cacheKey()) || 'null'); } catch (e) { return null; } }
-
-  var seq = 0;
   function load() {
-    if (!KEY || !API) { $('meta').textContent = 'LINE の行動コーチから開いてほしい。'; $('list').innerHTML = ''; return; }
-    var my = ++seq;
-    var cached = recall();
+    if (!KEY || !API) { $('list').innerHTML = '<div class="empty">LINE の行動コーチから開いてほしい。</div>'; return; }
+    var my = ++seq, cached = recall();
     if (cached) { DATA = cached; render(); }
-    call({ api: 'data', q: query() }).then(function (d) {
-      if (my !== seq || pending > 0) return; // 条件を変えた・保存中なら、古い返事で上書きしない
-      DATA = d; render(); remember();
-    }).catch(function (e) { if (!cached) $('meta').textContent = '読み込めなかった：' + e.message; });
+    call({ api: 'daily' }).then(function (d) { if (my !== seq || pending > 0) return; DATA = d; render(); remember(); })
+      .catch(function (e) { if (!cached) $('list').innerHTML = '<div class="empty">読み込めなかった：' + esc(e.message) + '</div>'; });
   }
-  var pending = 0;
+  // 押した瞬間に見た目を変え、保存は裏で行う。失敗したら知らせて読み直す
+  function save(p, msg) {
+    pending++; render(); remember();
+    call(p).then(function () { pending = Math.max(0, pending - 1); if (msg) toast(msg); })
+      .catch(function (e) { pending = 0; toast('保存できなかった：' + e.message); load(); });
+  }
 
-  function find(id) {
-    var all = DATA.items.concat(DATA.archived);
-    for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
-    return null;
-  }
+  // ---- 下からせり出す選択（外す・入れ替え） ----
+  function sheet(html) { $('sheet').innerHTML = html; $('sheet').classList.add('open'); $('scrim').classList.add('open'); }
+  function closeSheet() { $('sheet').classList.remove('open'); $('scrim').classList.remove('open'); }
+  $('scrim').addEventListener('click', closeSheet);
 
   document.addEventListener('click', function (e) {
     var t = e.target.closest('button'); if (!t) return;
-    if (t.dataset.o) { $(t.dataset.o).classList.toggle('open'); return; }
-    if (t.dataset.s) { scope = t.dataset.s; render(); load(); return; }
-    if (t.dataset.c && DATA) {
-      var it = find(t.dataset.c); if (!it) return;
-      var box = $(it.id);
-      // 押した瞬間に見た目を変える（返事を待たない）。保存は裏で行い、失敗したときだけ元に戻して知らせる
-      var v = !it.cleared;
-      var paint = function (on) { it.cleared = on; box.classList.toggle('done', on); t.innerHTML = '<i>' + (on ? '✓' : '') + '</i>' + (on ? 'クリア' : 'できた'); };
-      paint(v); remember();
-      pending++;
-      call({ api: 'done', t: it.id, v: v ? '1' : '0' })
-        .catch(function (err) { if (it.cleared === v) { paint(!v); remember(); } toast('保存できなかった：' + err.message); })
-        .then(function () { pending--; });
+    if (t.id === 'edit') { editing = !editing; render(); return; }
+    if (!DATA) return;
+    var ds = t.dataset, it;
+    if (ds.o) { $('i-' + ds.o).classList.toggle('open'); return; }
+    if (ds.c) { it = find(ds.c); it.checked = !it.checked; recount(); save({ api: 'check', t: it.id, v: it.checked ? '1' : '0' }); return; }
+    if (ds.rm) {
+      it = find(ds.rm);
+      sheet('<div class="hd">' + esc(it.name) + '<button data-close="1" aria-label="閉じる">×</button></div>' +
+        '<button class="opt ok" data-grad="' + esc(it.id) + '"><b>定着した</b><small>リストから外し、卒業として記録に残す。また同じことが起きたら戻ってくる</small></button>' +
+        '<button class="opt" data-back="' + esc(it.id) + '"><b>候補に戻す</b><small>いったん休む。あとで「編集」から入れ直せる</small></button>');
+      return;
+    }
+    if (ds.close) { closeSheet(); return; }
+    if (ds.grad || ds.back) {
+      var id = ds.grad || ds.back; it = find(id);
+      DATA.items = DATA.items.filter(function (x) { return x.id !== id; });
+      if (ds.grad) DATA.graduated = (DATA.graduated || 0) + 1; else DATA.candidates.unshift({ id: it.id, name: it.name, domains: it.domains, last: it.last, plan: it.plan });
+      recount(); closeSheet();
+      save({ api: 'move', t: id, to: ds.grad ? '定着' : '候補' }, ds.grad ? '定着した。おつかれさま' : '候補に戻した');
+      return;
+    }
+    if (ds.add) {
+      var c = find(ds.add, DATA.candidates);
+      if (DATA.items.length >= 10) {
+        sheet('<div class="hd">10がいっぱい。どれと入れ替える？<button data-close="1" aria-label="閉じる">×</button></div><div class="sub">入れるもの：' + esc(c.name) + '</div>' +
+          DATA.items.map(function (x) { return '<button class="opt" data-swap="' + esc(x.id) + '" data-in="' + esc(c.id) + '"><b>' + esc(x.name) + '</b><small>7日で' + (x.rate7 || 0) + '　→ 候補に戻す</small></button>'; }).join(''));
+        return;
+      }
+      DATA.candidates = DATA.candidates.filter(function (x) { return x.id !== c.id; });
+      DATA.items.push({ id: c.id, name: c.name, domains: c.domains, last: c.last, plan: c.plan, checked: false, rate7: 0 });
+      recount(); save({ api: 'move', t: c.id, to: '取り組む' }, '取り組むに入れた');
+      return;
+    }
+    if (ds.swap) {
+      var out = find(ds.swap), inn = find(ds['in'], DATA.candidates);
+      DATA.items = DATA.items.map(function (x) { return x.id === out.id ? { id: inn.id, name: inn.name, domains: inn.domains, last: inn.last, plan: inn.plan, checked: false, rate7: 0 } : x; });
+      DATA.candidates = [{ id: out.id, name: out.name, domains: out.domains, last: out.last, plan: out.plan }].concat(DATA.candidates.filter(function (x) { return x.id !== inn.id; }));
+      recount(); closeSheet();
+      save({ api: 'swap', out: out.id, 'in': inn.id }, '入れ替えた');
     }
   });
-  $('period').addEventListener('change', function () { period = this.value; load(); });
 
   render();
   load();
