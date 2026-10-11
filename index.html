@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>行動コーチ</title>
+<!--
+  行動コーチのチェックリスト（LINE の中でせり出す画面＝LIFF のページ）。デザインは案6「大きなタップと右のチェック」（2026-10-11 ユーザー選定）
+  Google の帯を出さないため、GitHub Pages に置く。このファイルには記録も合言葉も入れない。
+  開き方：LIFF の Endpoint URL = このページ?k=合言葉&api=スプレッドシート側の公開URL
+          カードから開くときの条件（q・focus）は、LINE が liff.state に入れて渡す
+  記録の読み書きは api（Apps Script の doGet）に JSON で頼む。元のコードは 04_Claude/14_BehaviorCoach/checklist/index.html
+-->
+<style>
+  :root {
+    --bg: #F7F8FA; --card: #FFFFFF; --ink: #1D2433; --sub: #7A8494; --line: #E8EBF0; --soft: #FAFBFC;
+    --blue: #1F6FEB; --blue-soft: #EEF4FF; --plan: #F2F7FF; --plan-ink: #1F5FD0;
+    --ok: #1A8A4A; --ok-soft: #E8F6EE; --amber: #B06D00; --ring: #C5CDD8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #11161D; --card: #1A2029; --ink: #E7ECF3; --sub: #95A1B2; --line: #2A323E; --soft: #1F2631;
+      --blue: #6FA3FF; --blue-soft: #1B2A40; --plan: #18243A; --plan-ink: #9EC2FF; --ok: #5DD39A; --ok-soft: #173326; --amber: #E5B23A; --ring: #4A5666; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+    font-size: 15px; line-height: 1.55; -webkit-text-size-adjust: 100%; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  button, select { font: inherit; color: inherit; }
+  .hd { display: flex; align-items: center; gap: 8px; padding: 14px 16px 4px; }
+  .hd h1 { font-size: 21px; margin: 0; letter-spacing: .01em; }
+  .hd select { margin-left: auto; font-size: 13px; border: 1px solid var(--line); border-radius: 10px; padding: 5px 8px; background: var(--card); }
+  .meta { padding: 0 16px; font-size: 12px; color: var(--sub); min-height: 18px; }
+  .scope { display: flex; gap: 6px; padding: 10px 16px 6px; overflow-x: auto; scrollbar-width: none; }
+  .scope::-webkit-scrollbar { display: none; }
+  .scope button { flex: 1 0 auto; min-width: 64px; border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 7px 10px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .scope button.on { border-color: var(--blue); color: var(--blue); font-weight: 700; background: var(--blue-soft); }
+  .sec { padding: 14px 16px 2px; font-size: 12px; color: var(--sub); letter-spacing: .04em; }
+  .it { margin: 8px 12px; background: var(--card); border-radius: 16px; border: 1px solid var(--line); overflow: hidden; transition: opacity .2s; }
+  .row { display: flex; align-items: stretch; }
+  .main { flex: 1; min-width: 0; padding: 13px 6px 13px 14px; border: 0; background: none; text-align: left; cursor: pointer; }
+  .nm { font-size: 15px; font-weight: 700; line-height: 1.4; }
+  .sb { font-size: 12px; color: var(--sub); margin-top: 2px; }
+  .tag { display: inline-block; font-size: 11px; border-radius: 4px; padding: 0 6px; margin-right: 6px; background: var(--soft); border: 1px solid var(--line); }
+  .ck { flex: 0 0 68px; border: 0; border-left: 1px solid var(--line); background: var(--soft); cursor: pointer; font-size: 11.5px; color: var(--sub); transition: background .2s, color .2s; padding: 0; }
+  .ck i { font-style: normal; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--ring); margin: 0 auto 3px; display: grid; place-items: center; font-size: 14px; transition: transform .15s, background .2s, border-color .2s; }
+  .done .ck { background: var(--ok-soft); color: var(--ok); }
+  .done .ck i { background: var(--ok); border-color: var(--ok); color: #fff; transform: scale(1.06); }
+  .done .nm { color: var(--sub); }
+  .busy .ck { opacity: .5; }
+  .det { display: none; padding: 0 14px 14px; font-size: 13.5px; }
+  .open .det { display: block; }
+  .dl { font-size: 11px; font-weight: 700; margin: 8px 0 3px; }
+  .plan { background: var(--plan); color: var(--plan-ink); border-radius: 10px; padding: 8px 10px; }
+  .ev { display: grid; grid-template-columns: 44px 1fr; gap: 6px; font-size: 13px; padding: 2px 0; }
+  .ev .d { color: var(--sub); }
+  .empty { margin: 12px; padding: 18px; text-align: center; color: var(--sub); font-size: 14px; background: var(--card); border: 1px dashed var(--line); border-radius: 16px; }
+  .foot { padding: 14px 16px 28px; font-size: 12px; color: var(--sub); }
+  .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90%; }
+  .toast.on { opacity: .95; }
+  .loading .list { opacity: .5; }
+  .skel { margin: 8px 12px; height: 62px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="hd">
+  <h1>改善中</h1>
+  <select id="period" aria-label="期間">
+    <option value="">全部</option><option>今週</option><option>先週</option><option>今月</option><option>先月</option><option>今年</option>
+  </select>
+</div>
+<div class="meta" id="meta">読み込み中…</div>
+<div class="scope" id="scope"></div>
+<div class="list" id="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+<div class="list" id="arch"></div>
+<p class="foot">右の「できた」を押すとクリアになる。もう一度押すと改善中に戻る。同じ型のことがまた起きたら、クリアにしたものも自動で改善中に戻る。</p>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  var SCOPES = ['すべて', '家庭・夫婦', '職場', '友人・知人', '親族', 'ひとり'];
+  var PERIOD_WORDS = ['今週', '先週', '今月', '先月', '今年'];
+
+  // ---- 呼び出しの条件を読む（LIFF は ?q=… を liff.state に入れて渡す） ----
+  var params = new URLSearchParams(location.search);
+  var state = params.get('liff.state');
+  if (state) new URLSearchParams(state.replace(/^[^?]*\?/, '')).forEach(function (v, k) { params.set(k, v); });
+  var KEY = params.get('k') || '';
+  var API = params.get('api') || '';
+  var focus = (params.get('focus') || '').replace(/[^A-Za-z0-9-]/g, '');
+  var words = (params.get('q') || '').split(/[\s　、,]+/).filter(Boolean);
+  var period = '', scope = 'すべて', rest = [];
+  words.forEach(function (w) {
+    if (!period && PERIOD_WORDS.indexOf(w) >= 0) period = w;
+    else if (scope === 'すべて' && SCOPES.indexOf(w) > 0) scope = w;
+    else if (scope === 'すべて' && { '夫婦': 1, '家庭': 1, '家': 1 }[w]) scope = '家庭・夫婦';
+    else if (scope === 'すべて' && { '仕事': 1, '会社': 1 }[w]) scope = '職場';
+    else rest.push(w); // 「妻」など相手の言葉や、10月のような期間はそのままサーバーに渡す
+  });
+  var DATA = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var md = function (s) { var m = String(s || '').match(/^\d{4}-(\d{2})-(\d{2})/); return m ? Number(m[1]) + '/' + Number(m[2]) : esc(s); };
+  function toast(t) { var x = $('toast'); x.textContent = t; x.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(function () { x.classList.remove('on'); }, 1600); }
+
+  function query() { return [period, scope === 'すべて' ? '' : scope].concat(rest).filter(Boolean).join(' '); }
+  function call(p) {
+    var u = API + (API.indexOf('?') >= 0 ? '&' : '?') + 'k=' + encodeURIComponent(KEY) + '&' + new URLSearchParams(p).toString();
+    return fetch(u).then(function (r) { return r.json(); }).then(function (j) { if (!j.ok) throw new Error(j.error || '失敗'); return j.data; });
+  }
+
+  function itemHtml(it) {
+    var ev = (it.events || []).map(function (e) { return '<div class="ev"><span class="d">' + md(e.date) + '</span><span>' + esc(e.text) + (e.partner ? '（' + esc(e.partner) + '）' : '') + '</span></div>'; }).join('');
+    return '<div class="it' + (it.cleared ? ' done' : '') + (it.id === focus ? ' open' : '') + '" id="' + esc(it.id) + '">' +
+      '<div class="row"><button class="main" data-o="' + esc(it.id) + '"><div class="nm">' + esc(it.name) + '</div>' +
+      '<div class="sb">' + (it.domains || []).map(function (d) { return '<span class="tag">' + esc(d) + '</span>'; }).join('') + '最後 ' + md(it.last) + '</div></button>' +
+      '<button class="ck" data-c="' + esc(it.id) + '" aria-pressed="' + !!it.cleared + '"><i>' + (it.cleared ? '✓' : '') + '</i>' + (it.cleared ? 'クリア' : 'できた') + '</button></div>' +
+      '<div class="det">' + (it.plan ? '<div class="dl" style="color:var(--blue)">次にすること</div><div class="plan">' + esc(it.plan) + '</div>' : '') +
+      (it.essence ? '<div class="dl" style="color:var(--amber)">本質（見立て）</div><div>' + esc(it.essence) + '</div>' : '') +
+      (ev ? '<div class="dl" style="color:var(--sub)">出来事（新しい順）</div>' + ev : '') + '</div></div>';
+  }
+
+  function render() {
+    $('period').value = period;
+    $('scope').innerHTML = SCOPES.map(function (s) { return '<button class="' + (s === scope ? 'on' : '') + '" data-s="' + s + '">' + s + '</button>'; }).join('');
+    if (!DATA) return;
+    $('meta').textContent = DATA.label + (DATA.range ? '（' + DATA.range + '）' : '') + (DATA.omitted ? '　重さと新しさで選んだ' + DATA.items.length + 'つ（ほかに' + DATA.omitted + '）' : '');
+    $('list').innerHTML = DATA.items.length ? DATA.items.map(itemHtml).join('') : '<div class="empty">この条件では、改善中のことはない。</div>';
+    $('arch').innerHTML = DATA.archived.length ? '<div class="sec">クリアにしたもの</div>' + DATA.archived.map(itemHtml).join('') : '';
+    if (focus) { var f = $(focus); if (f) f.scrollIntoView({ block: 'center' }); focus = ''; }
+  }
+
+  function load() {
+    if (!KEY || !API) { $('meta').textContent = 'LINE の行動コーチから開いてほしい。'; $('list').innerHTML = ''; return; }
+    document.body.classList.add('loading');
+    call({ api: 'data', q: query() }).then(function (d) { DATA = d; render(); })
+      .catch(function (e) { $('meta').textContent = '読み込めなかった：' + e.message; })
+      .then(function () { document.body.classList.remove('loading'); });
+  }
+
+  function find(id) {
+    var all = DATA.items.concat(DATA.archived);
+    for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
+    return null;
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.o) { $(t.dataset.o).classList.toggle('open'); return; }
+    if (t.dataset.s) { scope = t.dataset.s; render(); load(); return; }
+    if (t.dataset.c && DATA) {
+      var it = find(t.dataset.c); if (!it) return;
+      var box = $(it.id); if (box.classList.contains('busy')) return;
+      // 押した瞬間に見た目を変える（返事を待たない）。保存に失敗したら元に戻す
+      var v = !it.cleared;
+      it.cleared = v; box.classList.toggle('done', v); box.classList.add('busy');
+      t.innerHTML = '<i>' + (v ? '✓' : '') + '</i>' + (v ? 'クリア' : 'できた');
+      call({ api: 'done', t: it.id, v: v ? '1' : '0' })
+        .then(function () { toast(v ? 'クリアにした' : '改善中に戻した'); box.classList.remove('busy'); })
+        .catch(function (err) {
+          it.cleared = !v; box.classList.toggle('done', !v); box.classList.remove('busy');
+          t.innerHTML = '<i>' + (!v ? '✓' : '') + '</i>' + (!v ? 'クリア' : 'できた');
+          toast('保存できなかった：' + err.message);
+        });
+    }
+  });
+  $('period').addEventListener('change', function () { period = this.value; load(); });
+
+  render();
+  load();
+})();
+</script>
+</body>
+</html>
