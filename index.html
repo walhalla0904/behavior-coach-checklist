@@ -15,67 +15,75 @@
   記録の読み書きは api（Apps Script の doGet）に JSON で頼む。元のコードは 04_Claude/14_BehaviorCoach/checklist/index.html
 -->
 <style>
+  /* 見た目は AI家計簿の報告ページ（11_HouseholdManagement/gas/src/Report.html）にそろえる（2026-10-11 ユーザーの希望）
+     白いカード・細い線・角丸14px・薄い影・青、文字はスマホ標準 */
   :root {
-    --bg: #F7F8FA; --card: #FFFFFF; --ink: #1D2433; --sub: #7A8494; --line: #E8EBF0; --soft: #FAFBFC;
-    --blue: #1F6FEB; --blue-soft: #EEF4FF; --plan: #F2F7FF; --plan-ink: #1F5FD0;
-    --ok: #1A8A4A; --ok-soft: #E8F6EE; --amber: #B06D00; --ring: #C5CDD8;
+    --bg: #f4f6f9; --card: #ffffff; --ink: #1d2433; --sub: #5f6b7a; --line: #e3e8ef; --soft: #f6f8fb;
+    --accent: #1f6feb; --accent-soft: #eef4ff; --ok: #1a8a4a; --ok-soft: #e8f5ed; --amber: #b06d00; --ring: #c5cdd8;
+    --shadow: 0 1px 2px rgba(20,30,50,.06), 0 4px 16px rgba(20,30,50,.05);
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #11161D; --card: #1A2029; --ink: #E7ECF3; --sub: #95A1B2; --line: #2A323E; --soft: #1F2631;
-      --blue: #6FA3FF; --blue-soft: #1B2A40; --plan: #18243A; --plan-ink: #9EC2FF; --ok: #5DD39A; --ok-soft: #173326; --amber: #E5B23A; --ring: #4A5666; color-scheme: dark; }
+    :root { --bg: #10141b; --card: #1a2029; --ink: #e8edf4; --sub: #9aa7b8; --line: #2a323e; --soft: #212834;
+      --accent: #5b9dff; --accent-soft: #1b2a40; --ok: #4cc27f; --ok-soft: #173326; --amber: #e5b23a; --ring: #4a5666; --shadow: none; color-scheme: dark; }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
   body { background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
     font-size: 15px; line-height: 1.55; -webkit-text-size-adjust: 100%; padding-bottom: env(safe-area-inset-bottom, 0px); }
   button, select { font: inherit; color: inherit; }
-  .hd { display: flex; align-items: center; gap: 8px; padding: 14px 16px 4px; }
-  .hd h1 { font-size: 21px; margin: 0; letter-spacing: .01em; }
-  .hd select { margin-left: auto; font-size: 13px; border: 1px solid var(--line); border-radius: 10px; padding: 5px 8px; background: var(--card); }
-  .meta { padding: 0 16px; font-size: 12px; color: var(--sub); min-height: 18px; }
-  .scope { display: flex; gap: 6px; padding: 10px 16px 6px; overflow-x: auto; scrollbar-width: none; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 14px 16px 32px; }
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin: 2px 0 12px; }
+  header .app { font-size: 12px; color: var(--sub); }
+  header h1 { font-size: 22px; margin: 0; letter-spacing: .02em; }
+  header select { font-size: 13px; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; background: var(--card); }
+  .scope { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 4px; padding: 0 16px; }
   .scope::-webkit-scrollbar { display: none; }
-  .scope button { flex: 1 0 auto; min-width: 64px; border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 7px 10px; font-size: 13px; cursor: pointer; white-space: nowrap; }
-  .scope button.on { border-color: var(--blue); color: var(--blue); font-weight: 700; background: var(--blue-soft); }
-  .sec { padding: 14px 16px 2px; font-size: 12px; color: var(--sub); letter-spacing: .04em; }
-  .it { margin: 8px 12px; background: var(--card); border-radius: 16px; border: 1px solid var(--line); overflow: hidden; transition: opacity .2s; }
+  .scope button { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 13px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .scope button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .meta { font-size: 12px; color: var(--sub); margin: 6px 2px 10px; min-height: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; margin-bottom: 14px; }
+  .card h2 { font-size: 13px; color: var(--sub); font-weight: 600; margin: 0; padding: 12px 14px 4px; letter-spacing: .04em; }
+  .it { border-top: 1px solid var(--line); }
+  .card h2 + .it, .card > .it:first-child { border-top: 0; }
   .row { display: flex; align-items: stretch; }
-  .main { flex: 1; min-width: 0; padding: 13px 6px 13px 14px; border: 0; background: none; text-align: left; cursor: pointer; }
-  .nm { font-size: 15px; font-weight: 700; line-height: 1.4; }
+  .main { flex: 1; min-width: 0; padding: 12px 6px 12px 14px; border: 0; background: none; text-align: left; cursor: pointer; }
+  .nm { font-size: 15px; font-weight: 600; line-height: 1.45; }
   .sb { font-size: 12px; color: var(--sub); margin-top: 2px; }
-  .tag { display: inline-block; font-size: 11px; border-radius: 4px; padding: 0 6px; margin-right: 6px; background: var(--soft); border: 1px solid var(--line); }
-  .ck { flex: 0 0 68px; border: 0; border-left: 1px solid var(--line); background: var(--soft); cursor: pointer; font-size: 11.5px; color: var(--sub); transition: background .2s, color .2s; padding: 0; }
+  .tag { display: inline-block; font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-right: 6px; }
+  .ck { flex: 0 0 66px; border: 0; border-left: 1px solid var(--line); background: var(--soft); cursor: pointer; font-size: 11.5px; color: var(--sub); padding: 0; transition: background .2s, color .2s; }
   .ck i { font-style: normal; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--ring); margin: 0 auto 3px; display: grid; place-items: center; font-size: 14px; transition: transform .15s, background .2s, border-color .2s; }
   .done .ck { background: var(--ok-soft); color: var(--ok); }
   .done .ck i { background: var(--ok); border-color: var(--ok); color: #fff; transform: scale(1.06); }
   .done .nm { color: var(--sub); }
-  .det { display: none; padding: 0 14px 14px; font-size: 13.5px; }
+  .det { display: none; padding: 0 14px 14px; font-size: 14px; }
   .open .det { display: block; }
   .dl { font-size: 11px; font-weight: 700; margin: 8px 0 3px; }
-  .plan { background: var(--plan); color: var(--plan-ink); border-radius: 10px; padding: 8px 10px; }
+  .plan { background: var(--accent-soft); color: var(--accent); border-radius: 10px; padding: 8px 10px; }
   .ev { display: grid; grid-template-columns: 44px 1fr; gap: 6px; font-size: 13px; padding: 2px 0; }
   .ev .d { color: var(--sub); }
-  .empty { margin: 12px; padding: 18px; text-align: center; color: var(--sub); font-size: 14px; background: var(--card); border: 1px dashed var(--line); border-radius: 16px; }
-  .foot { padding: 14px 16px 28px; font-size: 12px; color: var(--sub); }
+  .empty { padding: 18px 14px; text-align: center; color: var(--sub); font-size: 14px; }
+  .foot { font-size: 12px; color: var(--sub); margin: 4px 2px 0; }
   .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90%; }
   .toast.on { opacity: .95; }
-  .loading .list { opacity: .5; }
-  .skel { margin: 8px 12px; height: 62px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+  .skel { height: 62px; border-top: 1px solid var(--line); }
+  .skel:first-child { border-top: 0; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
-<div class="hd">
-  <h1>改善中</h1>
-  <select id="period" aria-label="期間">
-    <option value="">全部</option><option>今週</option><option>先週</option><option>今月</option><option>先月</option><option>今年</option>
-  </select>
+<div class="wrap">
+  <header>
+    <div><div class="app">行動コーチ</div><h1>まだ改善中のこと</h1></div>
+    <select id="period" aria-label="期間">
+      <option value="">全部</option><option>今週</option><option>先週</option><option>今月</option><option>先月</option><option>今年</option>
+    </select>
+  </header>
+  <div class="scope" id="scope"></div>
+  <div class="meta" id="meta">読み込み中…</div>
+  <div class="card" id="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+  <div id="arch"></div>
+  <p class="foot">右の「できた」を押すとクリアになる。もう一度押すと改善中に戻る。同じ型のことがまた起きたら、クリアにしたものも自動で改善中に戻る。</p>
 </div>
-<div class="meta" id="meta">読み込み中…</div>
-<div class="scope" id="scope"></div>
-<div class="list" id="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
-<div class="list" id="arch"></div>
-<p class="foot">右の「できた」を押すとクリアになる。もう一度押すと改善中に戻る。同じ型のことがまた起きたら、クリアにしたものも自動で改善中に戻る。</p>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -118,7 +126,7 @@
       '<div class="row"><button class="main" data-o="' + esc(it.id) + '"><div class="nm">' + esc(it.name) + '</div>' +
       '<div class="sb">' + (it.domains || []).map(function (d) { return '<span class="tag">' + esc(d) + '</span>'; }).join('') + '最後 ' + md(it.last) + '</div></button>' +
       '<button class="ck" data-c="' + esc(it.id) + '" aria-pressed="' + !!it.cleared + '"><i>' + (it.cleared ? '✓' : '') + '</i>' + (it.cleared ? 'クリア' : 'できた') + '</button></div>' +
-      '<div class="det">' + (it.plan ? '<div class="dl" style="color:var(--blue)">次にすること</div><div class="plan">' + esc(it.plan) + '</div>' : '') +
+      '<div class="det">' + (it.plan ? '<div class="dl" style="color:var(--accent)">次にすること</div><div class="plan">' + esc(it.plan) + '</div>' : '') +
       (it.essence ? '<div class="dl" style="color:var(--amber)">本質（見立て）</div><div>' + esc(it.essence) + '</div>' : '') +
       (ev ? '<div class="dl" style="color:var(--sub)">出来事（新しい順）</div>' + ev : '') + '</div></div>';
   }
@@ -129,7 +137,7 @@
     if (!DATA) return;
     $('meta').textContent = DATA.label + (DATA.range ? '（' + DATA.range + '）' : '') + (DATA.omitted ? '　重さと新しさで選んだ' + DATA.items.length + 'つ（ほかに' + DATA.omitted + '）' : '');
     $('list').innerHTML = DATA.items.length ? DATA.items.map(itemHtml).join('') : '<div class="empty">この条件では、改善中のことはない。</div>';
-    $('arch').innerHTML = DATA.archived.length ? '<div class="sec">クリアにしたもの</div>' + DATA.archived.map(itemHtml).join('') : '';
+    $('arch').innerHTML = DATA.archived.length ? '<div class="card"><h2>クリアにしたもの</h2>' + DATA.archived.map(itemHtml).join('') + '</div>' : '';
     if (focus) { var f = $(focus); if (f) f.scrollIntoView({ block: 'center' }); focus = ''; }
   }
 
